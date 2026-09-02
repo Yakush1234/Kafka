@@ -56,9 +56,17 @@ async-consumer:
 lint:
     uv run --extra dev ruff check app
 
+# Format application code with Ruff
+formatter:
+    uv run --extra dev ruff format app
+
+# Check formatting without changing files
+format-check:
+    uv run --extra dev ruff format --check app
+
 # Run mypy static type checker
 typecheck:
     uv run --extra dev mypy
 
 # Run all static checks (without tests)
-check: lint typecheck
+check: format-check lint typecheck

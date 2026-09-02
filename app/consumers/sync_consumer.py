@@ -10,16 +10,9 @@ from confluent_kafka import (
     TopicPartition,
 )
 
-from app.config import settings
+from app.config import configure_log, settings
 
 logger = logging.getLogger(__name__)
-
-
-def configure_logging() -> None:
-    logging.basicConfig(
-        level=settings.log_level.upper(),
-        format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-    )
 
 
 def format_partitions(partitions: list[TopicPartition]) -> str:
@@ -101,7 +94,7 @@ def log_message(message: Message) -> None:
 
 
 def main() -> None:
-    configure_logging()
+    configure_log()
     try:
         consume_messages()
     except KafkaException as error:

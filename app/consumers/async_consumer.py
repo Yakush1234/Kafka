@@ -6,16 +6,9 @@ import logging
 from confluent_kafka import KafkaError, KafkaException, Message, TopicPartition
 from confluent_kafka.aio import AIOConsumer
 
-from app.config import settings
+from app.config import configure_log, settings
 
 logger = logging.getLogger(__name__)
-
-
-def configure_logging() -> None:
-    logging.basicConfig(
-        level=settings.log_level.upper(),
-        format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-    )
 
 
 def format_partitions(partitions: list[TopicPartition]) -> str:
@@ -100,7 +93,7 @@ async def consume_messages() -> None:
 
 
 def main() -> None:
-    configure_logging()
+    configure_log()
     try:
         asyncio.run(consume_messages())
     except KafkaException as error:
