@@ -1,27 +1,21 @@
-[build-system]
-requires = ["setuptools>=69.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
-name = "kafka-study"
+name = "kafka-example"
 version = "0.1.0"
-description = "Educational FastAPI and Kafka project"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.30.0",
-    "kafka-python>=2.0.2",
-    "pydantic-settings>=2.7.1",
+    "confluent-kafka>=2.15.0",
+    "pydantic-settings>=2.15.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "ruff>=0.6.0",
     "pytest>=8.3.0",
+    "mypy>=2.3.1",
 ]
 
 [tool.ruff]
-target-version = "py313"
+target-version = "py312"
 line-length = 88
 src = ["app"]
 
@@ -35,3 +29,11 @@ indent-style = "space"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["app"]
+strict = true
+pretty = true
+show_error_codes = true
+warn_unreachable = true
