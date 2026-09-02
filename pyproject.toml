@@ -1,23 +1,19 @@
-[build-system]
-requires = ["setuptools>=69.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
-name = "kafka-study"
+name = "kafka-example"
 version = "0.1.0"
-description = "Educational FastAPI and Kafka project"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.30.0",
-    "kafka-python>=2.0.2",
-    "pydantic-settings>=2.7.1",
+    "confluent-kafka>=2.15.0",
+    "fastapi>=0.141.1",
+    "sqlalchemy>=2.0.52",
+    "uvicorn>=0.52.4",
 ]
 
 [project.optional-dependencies]
 dev = [
     "ruff>=0.6.0",
     "pytest>=8.3.0",
+    "mypy>=2.3.1",
 ]
 
 [tool.ruff]
