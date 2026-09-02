@@ -1,187 +1,145 @@
 # Kafka study project
 
-Учебный проект с синхронными producer и consumer на `confluent-kafka`.
-Локально используется один Kafka broker в KRaft-режиме, без ZooKeeper.
+Учебный проект с синхронными и асинхронными producer/consumer на
+`confluent-kafka`. Локально используется один Kafka broker в KRaft-режиме, без
+ZooKeeper.
 
 ## Как связаны компоненты
 
 ```text
-Python producer -> 127.0.0.1:9092 -> topic study.messages
-                                      | partition 0 -> consumer 1
-                                      | partition 1 -> consumer 2
-                                      ` partition 2 -> один из consumers
+producer -> 127.0.0.1:9092 -> topic
+                                 | partition 0 -> consumer 1
+                                 | partition 1 -> consumer 2
+                                 ` partition 2 -> один из consumers
 ```
 
-- **Broker** — сервер Kafka. В проекте он работает в Docker.
-- **Topic** — именованный поток сообщений внутри Kafka.
+- **Broker** — сервер Kafka, запущенный в Docker.
+- **Topic** — именованный поток сообщений.
 - **Partition** — часть topic. Сообщения внутри одной partition упорядочены.
 - **Consumer group** — consumers с одинаковым `group.id`. Каждая partition
   назначается только одному активному consumer внутри группы.
 - **Offset** — позиция сообщения внутри partition. Kafka хранит прочитанные
   offsets отдельно для каждой consumer group.
-- **Replication factor** — число копий partition на разных brokers. Здесь broker
-  один, поэтому значение равно `1`.
+- **Replication factor** — количество копий partition. В учебном кластере один
+  broker, поэтому replication factor равен `1`.
 
-Три partitions позволяют одновременно работать максимум трём consumers группы.
-Четвёртый останется без partition. Если consumers меньше трёх, один процесс
-может получить несколько partitions.
+Три partitions позволяют одновременно работать максимум трём consumers одной
+группы. Четвёртый consumer останется без partition. Если consumers меньше трёх,
+один процесс может получить несколько partitions.
 
 ## 1. Подготовка
 
-Потребуются Docker Desktop, Python 3.12+, `uv` и, опционально, `just`.
+Потребуются:
+
+- Docker Desktop;
+- Python 3.12+;
+- `uv`;
+- `just`.
+
+Создайте локальный `.env` на основе `.env.example`:
 
 ```powershell
-uv sync
+just env-init
 ```
 
-Python-клиенты используют настройки из `.env`:
+Установите зависимости:
+
+```powershell
+just install
+```
+
+Основные настройки:
 
 ```dotenv
 KAFKA_BOOTSTRAP_SERVERS=127.0.0.1:9092
 KAFKA_TOPIC=study.messages
 KAFKA_CONSUMER_GROUP=study-consumers
-KAFKA_AUTO_OFFSET_RESET=earliest
+KAFKA_ASYNC_TOPIC=study.async.messages
+KAFKA_ASYNC_CONSUMER_GROUP=study-async-consumers
 ```
-
-`127.0.0.1:9092` доступен программам на компьютере. Внутри Docker-сети Kafka
-доступна как `kafka:19092`.
 
 ## 2. Запуск Kafka
 
-```powershell
-docker compose up -d --wait
-```
-
-Или:
+Запустите broker:
 
 ```powershell
 just kafka-up
 ```
 
-Проверка состояния и просмотр логов:
+Проверьте состояние контейнера:
 
 ```powershell
-docker compose ps
-docker compose logs -f kafka
+just kafka-status
+```
+
+Для просмотра логов Kafka:
+
+```powershell
+just kafka-logs
 ```
 
 Первый запуск скачает официальный образ Kafka. Данные сохраняются в Docker
-volume, поэтому обычный `docker compose down` их не удаляет.
+volume и не удаляются при обычной остановке broker.
 
-## 3. Создание topic
+## 3. Создание topics
 
-Автосоздание topics отключено. Создадим `study.messages` с тремя partitions:
-
-```powershell
-docker compose exec kafka /opt/kafka/bin/kafka-topics.sh `
-  --bootstrap-server kafka:19092 `
-  --create --if-not-exists `
-  --topic study.messages `
-  --partitions 3 `
-  --replication-factor 1
-```
-
-Короткая команда и проверка результата:
+Автоматическое создание topics отключено. Создайте topic для синхронных клиентов:
 
 ```powershell
 just topic-create
+```
+
+Создайте отдельный topic для асинхронных клиентов:
+
+```powershell
+just async-topic-create
+```
+
+Проверьте синхронный topic и его partitions:
+
+```powershell
 just topic-describe
 ```
 
-Другие полезные команды:
+Другие команды управления topics:
 
 ```powershell
-# Показать topics
-docker compose exec kafka /opt/kafka/bin/kafka-topics.sh `
-  --bootstrap-server kafka:19092 --list
+# Показать все topics
+just topic-list
 
-# Увеличить число partitions до пяти
-docker compose exec kafka /opt/kafka/bin/kafka-topics.sh `
-  --bootstrap-server kafka:19092 --alter `
-  --topic study.messages --partitions 5
+# Увеличить количество partitions до пяти
+just topic-alter 5
 
-# Удалить topic вместе с его сообщениями
-docker compose exec kafka /opt/kafka/bin/kafka-topics.sh `
-  --bootstrap-server kafka:19092 --delete --topic study.messages
+# Удалить синхронный topic вместе с сообщениями
+just topic-delete
 ```
 
-Число partitions можно только увеличивать. Для уменьшения topic придётся
+Количество partitions можно только увеличивать. Для уменьшения topic необходимо
 пересоздать. После увеличения распределение новых сообщений по ключам может
 измениться.
 
-## 4. Запуск consumers
+## 4. Синхронные consumer и producer
 
-В первом терминале:
-
-```powershell
-just consumer
-```
-
-Во втором терминале выполните ту же команду:
+Запустите consumer в первом терминале:
 
 ```powershell
 just consumer
 ```
 
-Или без `just`:
+При необходимости запустите эту же команду во втором терминале. Оба процесса
+войдут в группу `study-consumers`, после чего Kafka распределит между ними
+partitions.
 
-```powershell
-uv run python -m app.consumers.sync_consumer
-```
-
-Оба процесса используют группу `study-consumers`. При подключении или отключении
-consumer Kafka выполняет rebalance и перераспределяет partitions. Назначения
-видны в логах каждого процесса.
-
-## 5. Запуск producer
-
-В третьем терминале отправим 20 сообщений с интервалом 0.1 секунды:
+В отдельном терминале отправьте 20 сообщений:
 
 ```powershell
 just producer 20
 ```
 
-Или без `just`:
+Producer создаёт сообщения с интервалом 0.1 секунды и перед завершением ожидает
+подтверждения их доставки.
 
-```powershell
-uv run python -m app.producers.sync_producer 20
-```
-
-Producer ждёт подтверждения доставки перед завершением. Ключ сообщения — его
-номер; Kafka использует ключ для стабильного выбора partition.
-
-## 6. Consumer groups, offsets и lag
-
-```powershell
-# Показать все группы
-just groups
-
-# Показать состояние группы приложения
-just group-describe
-```
-
-`CURRENT-OFFSET` — следующая позиция чтения, `LOG-END-OFFSET` — конец partition,
-а `LAG` — число ещё не обработанных группой сообщений.
-
-`KAFKA_AUTO_OFFSET_RESET=earliest` применяется только тогда, когда сохранённого
-offset ещё нет. Впоследствии consumer продолжает с сохранённой позиции. Чтобы
-прочитать данные независимо с начала, можно временно указать новое значение
-`KAFKA_CONSUMER_GROUP` в `.env`.
-
-## 7. Асинхронные producer и consumer
-
-Async-версия использует отдельные настройки:
-
-```dotenv
-KAFKA_ASYNC_TOPIC=study.async.messages
-KAFKA_ASYNC_CONSUMER_GROUP=study-async-consumers
-```
-
-Сначала создайте отдельный topic с тремя partitions:
-
-```powershell
-just async-topic-create
-```
+## 5. Асинхронные consumer и producer
 
 Запустите один или несколько async consumers в отдельных терминалах:
 
@@ -189,33 +147,69 @@ just async-topic-create
 just async-consumer
 ```
 
-Затем отправьте сообщения:
+Отправьте 20 сообщений в отдельный async topic:
 
 ```powershell
 just async-producer 20
 ```
 
-Эквивалентные команды без `just`:
+Async consumer использует ручной commit после успешной обработки сообщения. Если
+процесс завершится между обработкой и commit, Kafka может доставить сообщение
+повторно. Это семантика **at-least-once**, поэтому обработчик должен учитывать
+возможность повторной доставки.
+
+## 6. Consumer groups, offsets и lag
+
+Показать все consumer groups:
 
 ```powershell
-uv run python -m app.consumers.async_consumer
-uv run python -m app.producers.async_producer 20
+just groups
 ```
 
-Посмотреть offsets и lag отдельной async-группы:
+Состояние синхронной группы:
+
+```powershell
+just group-describe
+```
+
+Состояние асинхронной группы:
 
 ```powershell
 just async-group-describe
 ```
 
-Async consumer отключает автоматический commit. После успешной обработки он
-сохраняет и подтверждает offset вручную. Если процесс завершится между обработкой
-и commit, сообщение будет доставлено повторно — это семантика **at-least-once**.
-Обработчик должен учитывать возможность повторной доставки.
+`CURRENT-OFFSET` — следующая позиция чтения, `LOG-END-OFFSET` — конец partition,
+а `LAG` — количество ещё не обработанных группой сообщений.
 
-`AIOProducer` и `AIOConsumer` не блокируют asyncio event loop во время ожидания
-Kafka. Это полезно, когда рядом выполняются другие сетевые или дисковые операции.
-Для простого автономного скрипта синхронная версия обычно проще.
+`KAFKA_AUTO_OFFSET_RESET=earliest` применяется только тогда, когда у группы нет
+сохранённого offset. В дальнейшем consumer продолжает с сохранённой позиции. Для
+независимого чтения с начала можно задать новое имя consumer group в `.env`.
+
+## 7. Статические проверки
+
+Отформатировать Python-код:
+
+```powershell
+just formatter
+```
+
+Запустить Ruff:
+
+```powershell
+just lint
+```
+
+Запустить mypy:
+
+```powershell
+just typecheck
+```
+
+Проверить форматирование, линтер и типы одной командой:
+
+```powershell
+just check
+```
 
 ## 8. Остановка и очистка
 
@@ -226,39 +220,16 @@ Consumers останавливаются сочетанием `Ctrl+C`. Оста
 just kafka-down
 ```
 
-Полностью удалить broker и volume со всеми сообщениями и offsets:
+Полностью удалить broker, topics, сообщения и offsets:
 
 ```powershell
-docker compose down -v
+just kafka-clean
 ```
 
-После удаления volume topic нужно создать заново.
+После полной очистки topics нужно создать заново.
 
-> Конфигурация предназначена для обучения: один broker, replication factor `1`,
-> соединение PLAINTEXT без аутентификации и шифрования.
+> Эта конфигурация предназначена для обучения: один broker, replication factor
+> `1`, соединение PLAINTEXT без аутентификации и шифрования.
 
-## Статические проверки
-
-Инструменты разработчика устанавливаются отдельной группой:
-
-```powershell
-uv sync --extra dev
-```
-
-Ruff проверяет стиль, подозрительные конструкции и неиспользуемый код:
-
-```powershell
-just lint
-```
-
-Mypy статически проверяет согласованность типов, не запуская программу:
-
-```powershell
-just typecheck
-```
-
-Запустить обе проверки:
-
-```powershell
-just check
-```
+Полный список коротких команд можно вывести через `just --list`. Их развёрнутые
+варианты без `just` находятся в [justfile](./justfile).

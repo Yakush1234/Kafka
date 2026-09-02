@@ -1,12 +1,28 @@
 set shell := ["powershell.exe", "-NoLogo", "-Command"]
 
+# Create .env from the example without overwriting an existing file
+env-init:
+    if (-not (Test-Path .env)) { Copy-Item .env.example .env } else { Write-Output '.env already exists' }
+
+# Install application and development dependencies
+install:
+    uv sync --extra dev
+
 # Start Kafka in the background
 kafka-up:
     docker compose up -d --wait
 
+# Show Kafka container status
+kafka-status:
+    docker compose ps
+
 # Stop Kafka, preserving its data
 kafka-down:
     docker compose down
+
+# Stop Kafka and delete all local messages, topics, and offsets
+kafka-clean:
+    docker compose down -v
 
 # Follow broker logs
 kafka-logs:
@@ -23,6 +39,18 @@ async-topic-create:
 # Show partitions of the study topic
 topic-describe:
     docker compose exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --describe --topic study.messages
+
+# List all topics
+topic-list:
+    docker compose exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --list
+
+# Increase the study topic partition count, for example: just topic-alter 5
+topic-alter count:
+    docker compose exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --alter --topic study.messages --partitions {{count}}
+
+# Delete the synchronous study topic and all of its messages
+topic-delete:
+    docker compose exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --delete --topic study.messages
 
 # List consumer groups
 groups:
