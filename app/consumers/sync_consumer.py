@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 
-from app.config import settings
 from confluent_kafka import (
     Consumer,
     KafkaError,
@@ -10,6 +9,8 @@ from confluent_kafka import (
     Message,
     TopicPartition,
 )
+
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -63,8 +64,9 @@ def consume_messages() -> None:
             message = consumer.poll(settings.kafka_poll_timeout_seconds)
             if message is None:
                 continue
-            if message.error():
-                if message.error().code() == KafkaError._PARTITION_EOF:
+            error = message.error()
+            if error is not None:
+                if error.code() == KafkaError._PARTITION_EOF:
                     logger.debug(
                         "End of partition topic=%s partition=%s offset=%s",
                         message.topic(),
@@ -72,7 +74,7 @@ def consume_messages() -> None:
                         message.offset(),
                     )
                     continue
-                raise KafkaException(message.error())
+                raise KafkaException(error)
 
             log_message(message)
     except KeyboardInterrupt:
@@ -84,8 +86,10 @@ def consume_messages() -> None:
 
 
 def log_message(message: Message) -> None:
-    key = message.key().decode() if message.key() is not None else None
-    value = message.value().decode() if message.value() is not None else None
+    raw_key = message.key()
+    raw_value = message.value()
+    key = raw_key.decode() if raw_key is not None else None
+    value = raw_value.decode() if raw_value is not None else None
     logger.info(
         "Received topic=%s partition=%s offset=%s key=%s value=%s",
         message.topic(),

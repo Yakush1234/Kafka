@@ -126,7 +126,7 @@ just consumer
 Или без `just`:
 
 ```powershell
-uv run python -m app.consumers.first_consumer
+uv run python -m app.consumers.sync_consumer
 ```
 
 Оба процесса используют группу `study-consumers`. При подключении или отключении
@@ -144,7 +144,7 @@ just producer 20
 Или без `just`:
 
 ```powershell
-uv run python -m app.producers.first_producer 20
+uv run python -m app.producers.sync_producer 20
 ```
 
 Producer ждёт подтверждения доставки перед завершением. Ключ сообщения — его
@@ -168,7 +168,56 @@ offset ещё нет. Впоследствии consumer продолжает с 
 прочитать данные независимо с начала, можно временно указать новое значение
 `KAFKA_CONSUMER_GROUP` в `.env`.
 
-## 7. Остановка и очистка
+## 7. Асинхронные producer и consumer
+
+Async-версия использует отдельные настройки:
+
+```dotenv
+KAFKA_ASYNC_TOPIC=study.async.messages
+KAFKA_ASYNC_CONSUMER_GROUP=study-async-consumers
+```
+
+Сначала создайте отдельный topic с тремя partitions:
+
+```powershell
+just async-topic-create
+```
+
+Запустите один или несколько async consumers в отдельных терминалах:
+
+```powershell
+just async-consumer
+```
+
+Затем отправьте сообщения:
+
+```powershell
+just async-producer 20
+```
+
+Эквивалентные команды без `just`:
+
+```powershell
+uv run python -m app.consumers.async_consumer
+uv run python -m app.producers.async_producer 20
+```
+
+Посмотреть offsets и lag отдельной async-группы:
+
+```powershell
+just async-group-describe
+```
+
+Async consumer отключает автоматический commit. После успешной обработки он
+сохраняет и подтверждает offset вручную. Если процесс завершится между обработкой
+и commit, сообщение будет доставлено повторно — это семантика **at-least-once**.
+Обработчик должен учитывать возможность повторной доставки.
+
+`AIOProducer` и `AIOConsumer` не блокируют asyncio event loop во время ожидания
+Kafka. Это полезно, когда рядом выполняются другие сетевые или дисковые операции.
+Для простого автономного скрипта синхронная версия обычно проще.
+
+## 8. Остановка и очистка
 
 Consumers останавливаются сочетанием `Ctrl+C`. Остановить Kafka с сохранением
 данных:
@@ -187,3 +236,29 @@ docker compose down -v
 
 > Конфигурация предназначена для обучения: один broker, replication factor `1`,
 > соединение PLAINTEXT без аутентификации и шифрования.
+
+## Статические проверки
+
+Инструменты разработчика устанавливаются отдельной группой:
+
+```powershell
+uv sync --extra dev
+```
+
+Ruff проверяет стиль, подозрительные конструкции и неиспользуемый код:
+
+```powershell
+just lint
+```
+
+Mypy статически проверяет согласованность типов, не запуская программу:
+
+```powershell
+just typecheck
+```
+
+Запустить обе проверки:
+
+```powershell
+just check
+```
