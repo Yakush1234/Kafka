@@ -6,9 +6,8 @@ import logging
 import time
 from datetime import UTC, datetime
 
-from confluent_kafka import KafkaError, Message, Producer
-
 from app.config import settings
+from confluent_kafka import KafkaError, Message, Producer
 
 logger = logging.getLogger(__name__)
 

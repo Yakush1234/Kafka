@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+from app.config import settings
 from confluent_kafka import (
     Consumer,
     KafkaError,
@@ -9,8 +10,6 @@ from confluent_kafka import (
     Message,
     TopicPartition,
 )
-
-from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -30,15 +29,11 @@ def format_partitions(partitions: list[TopicPartition]) -> str:
     )
 
 
-def log_assignment(
-    _consumer: Consumer, partitions: list[TopicPartition]
-) -> None:
+def log_assignment(_consumer: Consumer, partitions: list[TopicPartition]) -> None:
     logger.info("Partitions assigned: %s", format_partitions(partitions))
 
 
-def log_revocation(
-    _consumer: Consumer, partitions: list[TopicPartition]
-) -> None:
+def log_revocation(_consumer: Consumer, partitions: list[TopicPartition]) -> None:
     logger.info("Partitions revoked: %s", format_partitions(partitions))
 
 
